@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dragon Fruit Planner</title>
+<style>
+:root{--bg:#fbf6f8;--card:#fff;--ink:#2a1a22;--muted:#7a6670;--line:#ead9e0;--pink:#c2185b;--pinkbg:#fce4ee;--green:#2e7d32;--greenbg:#e3f3e4;--amber:#b26a00;--amberbg:#fff1d6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1217;--card:#261a21;--ink:#f6e9ef;--muted:#b49aa7;--line:#3b2a33;--pink:#f06292;--pinkbg:#3d1f2d;--green:#81c784;--greenbg:#1f3322;--amber:#ffb74d;--amberbg:#3a2c12}}
+:root[data-theme="dark"]{--bg:#1a1217;--card:#261a21;--ink:#f6e9ef;--muted:#b49aa7;--line:#3b2a33;--pink:#f06292;--pinkbg:#3d1f2d;--green:#81c784;--greenbg:#1f3322;--amber:#ffb74d;--amberbg:#3a2c12}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:8px 0 2px}
+.sub{color:var(--muted);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:3px}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input[type=number]{width:90px}
+input[type=text]{width:170px}
+button{font:inherit;border:0;border-radius:8px;padding:9px 14px;background:var(--pink);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);padding:5px 9px;font-size:.8rem}
+button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
+.plant h2{margin:0;font-size:1.15rem}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.tot{color:var(--muted);font-size:.85rem}
+.batch{border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0}
+.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.pill{font-size:.8rem;border-radius:99px;padding:2px 10px;background:var(--pinkbg);color:var(--pink);white-space:nowrap}
+.pill.ready{background:var(--greenbg);color:var(--green)}
+.pill.late{background:var(--amberbg);color:var(--amber)}
+.bar{height:6px;border-radius:4px;background:var(--line);margin:8px 0;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--pink)}
+.bar i.ready{background:var(--green)}
+.meta{font-size:.8rem;color:var(--muted)}
+.acts{display:flex;gap:6px;margin-top:6px}
+.next{background:var(--pinkbg);border-color:transparent}
+.empty{color:var(--muted);text-align:center;padding:24px}
+.err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
+details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Dragon Fruit Planner</h1>
+<p class="sub">Track each plant’s flowers and count down to harvest.</p>
+
+<div class="card next" id="next"></div>
+
+<div class="card">
+  <div class="row">
+    <label>Plant number<input type="number" id="pnum" min="1" inputmode="numeric" placeholder="1"></label>
+    <label>Note (optional)<input type="text" id="pnote" placeholder="e.g. red variety"></label>
+    <button data-a="addPlant">Add plant</button>
+  </div>
+  <div class="err" id="perr"></div>
+  <details>
+    <summary>Settings</summary>
+    <div class="row" style="margin-top:8px">
+      <label>Days from flower to fruit<input type="number" id="days" min="1" max="120"></label>
+      <button class="ghost" data-a="saveDays">Save</button>
+    </div>
+    <p class="meta">Typically about 30 to 50 days depending on weather. Adjust to match what you see.</p>
+  </details>
+</div>
+
+<div id="plants"></div>
+</main>
+
+<script>
+(function(){
+var KEY="dfp1", S={days:35,plants:[]};
+try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function iso(d){var m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(x<10?"0":"")+x}
+function parse(s){var a=s.split("-");return new Date(+a[0],+a[1]-1,+a[2])}
+function today(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate())}
+function fmt(d){return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}
+function info(b){
+  var bloom=parse(b.date),ready=new Date(bloom);ready.setDate(ready.getDate()+S.days);
+  var left=Math.round((ready-today())/864e5);
+  var done=Math.min(100,Math.max(0,Math.round((S.days-left)/S.days*100)));
+  return {ready:ready,left:left,pct:done};
+}
+function label(left){
+  if(left>1)return left+" days left";
+  if(left===1)return "1 day left";
+  if(left===0)return "Ready today";
+  return "Ready, "+(-left)+(left===-1?" day":" days")+" past";
+}
+function cls(left){return left>0?"":(left===0?"ready":"late")}
+function render(){
+  $("days").value=S.days;
+  var all=[];
+  S.plants.forEach(function(p){p.batches.forEach(function(b){var i=info(b);all.push({p:p,b:b,i:i})})});
+  all.sort(function(a,b){return a.i.left-b.i.left});
+  var n=$("next");
+  if(!all.length){n.innerHTML='<strong>Next harvest</strong><div class="meta">Add a plant and a flower batch to start the countdown.</div>'}
+  else{var x=all[0];n.innerHTML='<strong>Next harvest</strong><div>Plant #'+esc(x.p.num)+': '+x.b.qty+(x.b.qty===1?' flower':' flowers')+' · <b>'+label(x.i.left)+'</b></div><div class="meta">Around '+fmt(x.i.ready)+'</div>'}
+  var list=S.plants.slice().sort(function(a,b){return a.num-b.num});
+  if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Add your first one above.</div>';return}
+  $("plants").innerHTML=list.map(function(p){
+    var tot=p.batches.reduce(function(s,b){return s+b.qty},0);
+    var bs=p.batches.slice().sort(function(a,b){return a.date<b.date?-1:1}).map(function(b){
+      var i=info(b),c=cls(i.left);
+      return '<div class="batch"><div class="top"><strong>'+b.qty+(b.qty===1?' flower':' flowers')+'</strong><span class="pill '+c+'">'+label(i.left)+'</span></div>'
+      +'<div class="bar"><i class="'+(i.left<=0?'ready':'')+'" style="width:'+i.pct+'%"></i></div>'
+      +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
+      +'<div class="acts"><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button></div></div>';
+    }).join("");
+    return '<div class="card plant"><div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div>'
+    +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add another bloom</button></div></div>';
+  }).join("");
+}
+function find(id){return S.plants.filter(function(p){return p.id===id})[0]}
+document.addEventListener("click",function(e){
+  var t=e.target.closest("[data-a]");if(!t)return;
+  var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
+  if(a==="addPlant"){
+    var num=parseInt($("pnum").value,10);
+    if(!num||num<1){$("perr").textContent="Enter a plant number.";return}
+    if(S.plants.some(function(x){return x.num===num})){$("perr").textContent="Plant #"+num+" already exists.";return}
+    S.plants.push({id:uid(),num:num,note:$("pnote").value.trim(),batches:[]});
+    $("pnum").value="";$("pnote").value="";$("perr").textContent="";
+  }else if(a==="saveDays"){
+    var d=parseInt($("days").value,10);if(d>0&&d<=120)S.days=d;
+  }else if(a==="addBatch"&&p){
+    var q=parseInt($("q-"+p.id).value,10),dt=$("d-"+p.id).value;
+    if(!q||q<1||!dt)return;
+    p.batches.push({id:uid(),qty:q,date:dt});
+  }else if((a==="harvest"||a==="delBatch")&&p){
+    p.batches=p.batches.filter(function(b){return b.id!==t.dataset.b});
+  }else if(a==="delPlant"&&p){
+    if(!confirm("Delete plant #"+p.num+" and its flowers?"))return;
+    S.plants=S.plants.filter(function(x){return x!==p});
+  }
+  save();render();
+});
+$("pnum").addEventListener("keydown",function(e){if(e.key==="Enter")document.querySelector('[data-a="addPlant"]').click()});
+render();
+})();
+</script>
+</body>
+</html>
