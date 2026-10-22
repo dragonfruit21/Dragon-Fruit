@@ -115,7 +115,7 @@ function render(){
       +'<div class="acts"><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button></div></div>';
     }).join("");
     return '<div class="card plant"><div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div>'
-    +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add another bloom</button></div></div>';
+    +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add bloom</button></div></div>';
   }).join("");
 }
 function find(id){return S.plants.filter(function(p){return p.id===id})[0]}
