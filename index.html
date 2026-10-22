@@ -18,7 +18,7 @@ h1{font-size:1.5rem;margin:8px 0 2px;color:var(--green)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
 label{display:flex;flex-direction:column;font-size:.8rem;color:var(--muted);gap:3px}
-input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
 input[type=number]{width:90px}
 input[type=text]{width:170px}
 button{font:inherit;border:0;border-radius:8px;padding:9px 14px;background:var(--pink);color:#fff;cursor:pointer}
@@ -53,7 +53,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <div class="card">
   <div class="row">
     <label>Plant number<input type="number" id="pnum" min="1" inputmode="numeric" placeholder="1"></label>
-    <label>Note (optional)<input type="text" id="pnote" placeholder="e.g. red variety"></label>
+    <label>Plant type<select id="pnote"><option value="">Select type</option><option>Sugar Dragon</option><option>SourPatch Kids</option><option>White Vietnamese</option><option>Shayna</option></select></label>
     <button data-a="addPlant">Add plant</button>
   </div>
   <div class="err" id="perr"></div>
@@ -72,7 +72,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 
 <script>
 (function(){
-var KEY="dfp1", S={days:35,plants:[]};
+var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null;
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function $(id){return document.getElementById(id)}
@@ -108,13 +108,13 @@ function render(){
   $("plants").innerHTML=list.map(function(p){
     var tot=p.batches.reduce(function(s,b){return s+b.qty},0);
     var bs=p.batches.slice().sort(function(a,b){return a.date<b.date?-1:1}).map(function(b){
-      var i=info(b),c=cls(i.left);
+      var i=info(b),c=cls(i.left);if(editing===b.id){return '<div class="batch"><div class="row"><label>Flowers<input type="number" min="1" id="eq" value="'+b.qty+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="ed" value="'+b.date+'"></label></div><div class="acts"><button class="ok" data-a="saveEdit" data-p="'+p.id+'" data-b="'+b.id+'">Save</button><button class="ghost" data-a="cancelEdit">Cancel</button></div></div>'}
       return '<div class="batch"><div class="top"><strong>'+b.qty+(b.qty===1?' flower':' flowers')+'</strong><span class="pill '+c+'">'+label(i.left)+'</span></div>'
       +'<div class="bar"><i class="'+(i.left<=0?'ready':'')+'" style="width:'+i.pct+'%"></i></div>'
       +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
-      +'<div class="acts"><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button></div></div>';
+      +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'">Edit</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button></div></div>';
     }).join("");
-    return '<div class="card plant"><div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div>'
+    var types=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"];var head;if(editingP===p.id){var tl=types.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}return '<div class="card plant">'+head
     +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add bloom</button></div></div>';
   }).join("");
 }
@@ -134,7 +134,7 @@ document.addEventListener("click",function(e){
     var q=parseInt($("q-"+p.id).value,10),dt=$("d-"+p.id).value;
     if(!q||q<1||!dt)return;
     p.batches.push({id:uid(),qty:q,date:dt});
-  }else if((a==="harvest"||a==="delBatch")&&p){
+  }else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
     p.batches=p.batches.filter(function(b){return b.id!==t.dataset.b});
   }else if(a==="delPlant"&&p){
     if(!confirm("Delete plant #"+p.num+" and its flowers?"))return;
