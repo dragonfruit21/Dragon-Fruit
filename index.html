@@ -75,7 +75,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 
 <script>
 (function(){
-var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null, tab="planner";
+var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null, tab="planner", open={};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function $(id){return document.getElementById(id)}
@@ -128,7 +128,7 @@ function render(){renderTotals();
       +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
       +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'">Edit</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button></div></div>';
     }).join("");
-    var types=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"];var head;if(editingP===p.id){var tl=types.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}return '<div class="card plant">'+head
+    var types=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"];var head;if(editingP===p.id){var tl=types.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}if(!open[p.id]&&editingP!==p.id)return '<div class="card plant" data-a="toggle" data-p="'+p.id+'" style="cursor:pointer"><div class="head" style="margin:0"><h2>Plant #'+esc(p.num)+'</h2><button class="ghost" data-a="toggle" data-p="'+p.id+'">Show</button></div></div>';return '<div class="card plant">'+head
     +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add bloom</button></div></div>';
   }).join("");
 }
@@ -141,7 +141,7 @@ document.addEventListener("click",function(e){
     var num=parseInt($("pnum").value,10);
     if(!num||num<1){$("perr").textContent="Enter a plant number.";return}
     if(S.plants.some(function(x){return x.num===num})){$("perr").textContent="Plant #"+num+" already exists.";return}
-    S.plants.push({id:uid(),num:num,note:$("pnote").value.trim(),batches:[]});
+    var np={id:uid(),num:num,note:$("pnote").value.trim(),batches:[]};S.plants.push(np);open[np.id]=true;
     $("pnum").value="";$("pnote").value="";$("perr").textContent="";
   }else if(a==="saveDays"){
     var d=parseInt($("days").value,10);if(d>0&&d<=120)S.days=d;
@@ -149,7 +149,7 @@ document.addEventListener("click",function(e){
     var q=parseInt($("q-"+p.id).value,10),dt=$("d-"+p.id).value;
     if(!q||q<1||!dt)return;
     p.batches.push({id:uid(),qty:q,date:dt});
-  }else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
+  }else if(a==="toggle"&&p){open[p.id]=!open[p.id];}else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
     p.batches=p.batches.filter(function(b){return b.id!==t.dataset.b});
   }else if(a==="delPlant"&&p){
     if(!confirm("Delete plant #"+p.num+" and its flowers?"))return;
