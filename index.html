@@ -38,6 +38,7 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .meta{font-size:.8rem;color:var(--muted)}
 .acts{display:flex;gap:6px;margin-top:6px}
 .next{background:var(--pinkbg);border-color:transparent}
+.tabs{display:flex;gap:6px;margin-bottom:14px}.tab{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line)}.tab.on{background:var(--pink);color:#fff;border-color:var(--pink)}.trow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.trow:last-child{border:0}.trow b{color:var(--green)}.th{margin:0 0 4px;font-size:1.1rem;color:var(--green)}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
 details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
@@ -48,7 +49,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <h1>Dragon Fruit Planner</h1>
 <p class="sub">Track each plant’s flowers and count down to harvest.</p>
 
-<div class="card next" id="next"></div>
+<div class="tabs"><button class="tab on" data-a="tab" data-t="planner">Planner</button><button class="tab" data-a="tab" data-t="totals">Totals</button></div>
+<div id="v-planner"><div class="card next" id="next"></div>
 
 <div class="card">
   <div class="row">
@@ -67,12 +69,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
   </details>
 </div>
 
-<div id="plants"></div>
+<div id="plants"></div></div>
+<div id="v-totals" hidden><div class="card"><h2 class="th">Flowers by plant type</h2><div class="meta">Counts flowers still growing. Harvested batches are not included.</div><div id="totals"></div></div></div>
 </main>
 
 <script>
 (function(){
-var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null;
+var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null, tab="planner";
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 function $(id){return document.getElementById(id)}
@@ -95,7 +98,18 @@ function label(left){
   return "Ready, "+(-left)+(left===-1?" day":" days")+" past";
 }
 function cls(left){return left>0?"":(left===0?"ready":"late")}
-function render(){
+function renderTotals(){
+  $("v-planner").hidden=tab!=="planner";$("v-totals").hidden=tab!=="totals";
+  var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
+  var order=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"],m={};
+  order.forEach(function(t){m[t]={plants:0,fl:0}});
+  S.plants.forEach(function(p){var k=p.note||"No type";if(!m[k])m[k]={plants:0,fl:0};m[k].plants++;m[k].fl+=p.batches.reduce(function(s,b){return s+b.qty},0)});
+  var keys=order.concat(Object.keys(m).filter(function(k){return order.indexOf(k)<0}));
+  var tp=0,tf=0;
+  var rows=keys.map(function(k){var v=m[k];tp+=v.plants;tf+=v.fl;return '<div class="trow"><div><strong>'+esc(k)+'</strong><div class="meta">'+v.plants+(v.plants===1?' plant':' plants')+'</div></div><b>'+v.fl+(v.fl===1?' flower':' flowers')+'</b></div>'}).join("");
+  $("totals").innerHTML=rows+'<div class="trow"><div><strong>All plants</strong><div class="meta">'+tp+(tp===1?' plant':' plants')+'</div></div><b>'+tf+(tf===1?' flower':' flowers')+'</b></div>';
+}
+function render(){renderTotals();
   $("days").value=S.days;
   var all=[];
   S.plants.forEach(function(p){p.batches.forEach(function(b){var i=info(b);all.push({p:p,b:b,i:i})})});
@@ -122,6 +136,7 @@ function find(id){return S.plants.filter(function(p){return p.id===id})[0]}
 document.addEventListener("click",function(e){
   var t=e.target.closest("[data-a]");if(!t)return;
   var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
+  if(a==="tab"){tab=t.dataset.t;renderTotals();return}
   if(a==="addPlant"){
     var num=parseInt($("pnum").value,10);
     if(!num||num<1){$("perr").textContent="Enter a plant number.";return}
