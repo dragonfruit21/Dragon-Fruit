@@ -110,7 +110,7 @@ function renderAcct(){
   renderTotals();var el=$("acct");
   if(sess){el.innerHTML='<div class="row" style="justify-content:space-between;align-items:center"><div class="meta">Signed in as <b>'+esc(sess.user.name||sess.user.email)+'</b> · '+esc(msg||"Ready")+'</div><button class="ghost" data-a="signout">Sign out</button></div>';return}
   var up=authMode==="signup";
-  el.innerHTML='<div><strong>'+(up?'Create your account':'Sign in to open your planner')+'</strong><div class="meta">Your plants sync across all your devices.</div><div class="row" style="margin-top:8px">'
+  el.innerHTML='<div><strong>'+(up?'Create your account':'Sign in to sync across devices')+'</strong><div class="meta">Without signing in, your plants are saved on this device only.</div><div class="row" style="margin-top:8px">'
   +(up?'<label>Email<input type="text" id="aem" autocomplete="email"></label>':'')
   +'<label>Username<input type="text" id="aun" autocomplete="'+(up?'nickname':'username')+'"></label><label>Password<input type="password" id="apw" autocomplete="'+(up?'new-password':'current-password')+'"></label></div><div class="acts"><button data-a="'+(up?'signup':'signin')+'">'+(up?'Create account':'Sign in')+'</button><button class="ghost" data-a="mode" data-m="'+(up?'signin':'signup')+'">'+(up?'Back to sign in':'Create account')+'</button></div><div class="err" id="aerr">'+esc(msg)+'</div></div>';
 }
@@ -195,7 +195,7 @@ function label(left){
 }
 function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
-  var on=!!sess&&!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
+  var on=!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
   var order=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"],m={};
   order.forEach(function(t){m[t]={plants:0,fl:0}});
