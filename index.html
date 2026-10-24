@@ -110,7 +110,7 @@ function renderAcct(){
   var up=authMode==="signup";
   el.innerHTML='<div><strong>'+(up?'Create your account':'Sign in to open your planner')+'</strong><div class="meta">Your plants sync across all your devices.</div><div class="row" style="margin-top:8px">'
   +(up?'<label>Email<input type="text" id="aem" autocomplete="email"></label>':'')
-  +'<label>Username<input type="text" id="aun" autocomplete="username"></label><label>Password<input type="password" id="apw" autocomplete="'+(up?'new-password':'current-password')+'"></label></div><div class="acts"><button data-a="'+(up?'signup':'signin')+'">'+(up?'Create account':'Sign in')+'</button><button class="ghost" data-a="mode" data-m="'+(up?'signin':'signup')+'">'+(up?'Back to sign in':'Create account')+'</button></div><div class="err" id="aerr">'+esc(msg)+'</div></div>';
+  +'<label>Username<input type="text" id="aun" autocomplete="'+(up?'nickname':'username')+'"></label><label>Password<input type="password" id="apw" autocomplete="'+(up?'new-password':'current-password')+'"></label></div><div class="acts"><button data-a="'+(up?'signup':'signin')+'">'+(up?'Create account':'Sign in')+'</button><button class="ghost" data-a="mode" data-m="'+(up?'signin':'signup')+'">'+(up?'Back to sign in':'Create account')+'</button></div><div class="err" id="aerr">'+esc(msg)+'</div></div>';
 }
 function push(){
   if(!sess)return Promise.resolve();
