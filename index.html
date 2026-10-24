@@ -40,6 +40,7 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .acts{display:flex;gap:6px;margin-top:6px}
 .next{background:var(--pinkbg);border-color:transparent}
 .tabs{display:flex;gap:6px;margin-bottom:14px}.tab{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line)}.tab.on{background:var(--pink);color:#fff;border-color:var(--pink)}.trow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.trow:last-child{border:0}.trow b{color:var(--green)}.th{margin:0 0 4px;font-size:1.1rem;color:var(--green)}
+.spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
 details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
@@ -51,6 +52,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <p class="sub">Track each plant’s flowers and count down to harvest.</p></div></header>
 
 <div class="card" id="acct"></div>
+<div class="card" id="loading" hidden style="text-align:center;padding:36px"><div class="spin"></div><div>Loading your planner…</div></div>
 <div class="tabs"><button class="tab on" data-a="tab" data-t="planner">Planner</button><button class="tab" data-a="tab" data-t="totals">Totals</button></div>
 <div id="v-planner"><div class="card next" id="next"></div>
 
@@ -81,10 +83,10 @@ var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null, tab="planner
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(skip){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(sess&&!skip){clearTimeout(timer);timer=setTimeout(push,800)}}
 var SB="https://usmsyjftegnekeffhwna.supabase.co",KEYA="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbXN5amZ0ZWduZWtlZmZod25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDA1NjUsImV4cCI6MjEwODM3NjU2NX0.ZRizDpZ97C4bhCsze42JHxVqkF05MEw2busLfWE9kDE";
-var SK="dfp-sess",sess=null,lastAt="",timer=null,msg="",openAcct=false,authMode="signin";
+var SK="dfp-sess",sess=null,lastAt="",timer=null,msg="",openAcct=false,authMode="signin",loading=false,busy=false;
 try{sess=JSON.parse(localStorage.getItem(SK))}catch(e){}
 if(sess&&!sess.user)sess=null;
-lastAt=(sess&&sess.last)||"";
+lastAt=(sess&&sess.last)||"";loading=!!sess;
 function setSess(s){sess=s;try{if(s)localStorage.setItem(SK,JSON.stringify(s));else localStorage.removeItem(SK)}catch(e){}}
 function setLast(v){lastAt=v;if(sess){sess.last=v;setSess(sess)}}
 function api(path,opt,useTok){
@@ -132,34 +134,46 @@ function pull(first){
     else{status("Synced")}
   }).catch(function(){status("Offline or sync problem. Saved on this device.")});
 }
+var LOADMS=8000;
+function withLoad(fn){
+  loading=true;renderAcct();
+  var done=false,tm;
+  var fin=function(){if(done)return;done=true;clearTimeout(tm);loading=false;render();renderAcct()};
+  tm=setTimeout(function(){if(!done){msg="Taking too long. Showing what is saved on this device.";fin()}},LOADMS);
+  return Promise.resolve().then(fn).then(fin,fin);
+}
 function doAuth(kind){
+  if(busy)return;
   var un=$("aun").value.trim(),pw=$("apw").value,em=kind==="signup"?$("aem").value.trim():"";
   if(!/^[A-Za-z0-9_]{3,20}$/.test(un)){status("Username must be 3 to 20 letters, numbers or underscores.");return}
   if(pw.length<6){status("Password must be at least 6 characters.");return}
   if(kind==="signup"&&!/^\S+@\S+\.\S+$/.test(em)){status("Enter a valid email.");return}
-  status("Working…");
+  status("Working…");busy=true;
+  var btns=document.querySelectorAll("#acct button");for(var i=0;i<btns.length;i++)btns[i].disabled=true;
   var FN="/functions/v1/username-auth";
   var fail=function(){status("Could not connect. Check your internet.")};
   var down=function(x){return x.status>=500||x.status===404||x.status===401};
   var post=function(path,body){return api(path,{method:"POST",body:JSON.stringify(body)}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j}},function(){return {ok:r.ok,status:r.status,j:{}}})})};
+  var go;
   if(kind==="signup"){
-    post(FN,{action:"available",username:un}).then(function(a){
+    go=post(FN,{action:"available",username:un}).then(function(a){
       if(!a.ok){status(down(a)?"Sign-in service is not available. Try again later.":"Something went wrong.");return}
       if(!a.j.available){status("That username is taken. Try another.");return}
       return post("/auth/v1/signup",{email:em,password:pw,data:{username:un}}).then(function(x){
         if(!x.ok){status(x.j.msg||x.j.error_description||x.j.message||"Something went wrong.");return}
         if(!x.j.access_token){authMode="signin";msg="Account created. Check your email to confirm it, then sign in with your username.";renderAcct();return}
-        lastAt="";setSess(toSess(x.j));msg="";return pull(true);
+        lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
       });
-    }).catch(fail);
-    return;
+    });
+  }else{
+    go=post(FN,{action:"login",username:un,password:pw}).then(function(x){
+      if(!x.ok){status(down(x)?"Sign-in service is not available. Try again later.":(x.j.error==="email_not_confirmed"?"Please confirm your email first, then sign in.":"Incorrect username or password."));return}
+      lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
+    });
   }
-  post(FN,{action:"login",username:un,password:pw}).then(function(x){
-    if(!x.ok){status(down(x)?"Sign-in service is not available. Try again later.":(x.j.error==="email_not_confirmed"?"Please confirm your email first, then sign in.":"Incorrect username or password."));return}
-    lastAt="";setSess(toSess(x.j));msg="";return pull(true);
-  }).catch(fail);
+  go.catch(fail).then(function(){busy=false;var b2=document.querySelectorAll("#acct button");for(var k=0;k<b2.length;k++)b2[k].disabled=false});
 }
-function signOut(){clearTimeout(timer);timer=null;setSess(null);lastAt="";msg="";openAcct=false;renderAcct()}
+function signOut(){loading=false;clearTimeout(timer);timer=null;setSess(null);lastAt="";msg="";openAcct=false;renderAcct()}
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -181,7 +195,7 @@ function label(left){
 }
 function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
-  var on=!!sess;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
+  var on=!!sess&&!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
   var order=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"],m={};
   order.forEach(function(t){m[t]={plants:0,fl:0}});
@@ -243,7 +257,7 @@ document.addEventListener("click",function(e){
   save();render();
 });
 $("pnum").addEventListener("keydown",function(e){if(e.key==="Enter")document.querySelector('[data-a="addPlant"]').click()});
-render();renderAcct();if(sess)pull(false);
+render();renderAcct();if(sess)withLoad(function(){return pull(false)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&sess&&!timer)pull(false)});
 })();
 </script>
