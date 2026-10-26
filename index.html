@@ -40,6 +40,9 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .acts{display:flex;gap:6px;margin-top:6px}
 .next{background:var(--pinkbg);border-color:transparent}
 .tabs{display:flex;gap:6px;margin-bottom:14px}.tab{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line)}.tab.on{background:var(--pink);color:#fff;border-color:var(--pink)}.trow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}.trow:last-child{border:0}.trow b{color:var(--green)}.th{margin:0 0 4px;font-size:1.1rem;color:var(--green)}
+.info{border-radius:50%;width:28px;height:28px;padding:0;font-weight:700;line-height:1}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}.ov[hidden]{display:none}
+.dlg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
@@ -59,27 +62,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <div class="card">
   <div class="row">
     <label>Plant number<input type="number" id="pnum" min="1" inputmode="numeric" placeholder="1"></label>
-    <label>Plant type<select id="pnote"><option value="">Select type</option><option>Sugar Dragon</option><option>SourPatch Kids</option><option>White Vietnamese</option><option>Shayna</option></select></label>
+    <label>Plant type<select id="pnote"><option value="">Select type</option><option>Sugar Dragon</option><option>SourPatch Kids</option><option>White Vietnamese</option><option>Shayna</option><option>NOID</option></select></label>
     <button data-a="addPlant">Add plant</button>
   </div>
   <div class="err" id="perr"></div>
-  <details>
-    <summary>Settings</summary>
-    <div class="row" style="margin-top:8px">
-      <label>Days from flower to fruit<input type="number" id="days" min="1" max="120"></label>
-      <button class="ghost" data-a="saveDays">Save</button>
-    </div>
-    <p class="meta">Typically about 30 to 50 days depending on weather. Adjust to match what you see.</p>
-  </details>
 </div>
 
 <div id="plants"></div></div>
 <div id="v-totals" hidden><div class="card"><h2 class="th">Flowers by plant type</h2><div class="meta">Counts flowers still growing. Harvested batches are not included.</div><div id="totals"></div></div></div>
 </main>
+<div class="ov" id="modal" data-a="closeSet" hidden></div>
 
 <script>
 (function(){
-var KEY="dfp1", S={days:35,plants:[]}, editing=null, editingP=null, tab="planner", open={};
+var KEY="dfp1", S={days:35,plants:[]}, TYPES=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna","NOID"], infoOpen=false, editing=null, editingP=null, tab="planner", open={};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(skip){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(sess&&!skip){clearTimeout(timer);timer=setTimeout(push,800)}}
 var SB="https://usmsyjftegnekeffhwna.supabase.co",KEYA="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbXN5amZ0ZWduZWtlZmZod25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDA1NjUsImV4cCI6MjEwODM3NjU2NX0.ZRizDpZ97C4bhCsze42JHxVqkF05MEw2busLfWE9kDE";
@@ -181,11 +177,18 @@ function iso(d){var m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+"-"+(m
 function parse(s){var a=s.split("-");return new Date(+a[0],+a[1]-1,+a[2])}
 function today(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate())}
 function fmt(d){return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}
-function info(b){
-  var bloom=parse(b.date),ready=new Date(bloom);ready.setDate(ready.getDate()+S.days);
+function renderModal(){
+  var m=$("modal");m.hidden=!infoOpen;
+  if(!infoOpen){m.innerHTML="";return}
+  var rows=TYPES.map(function(t,k){return '<div class="trow"><label for="td'+k+'" style="flex-direction:row;color:var(--ink);font-size:1rem">'+esc(t)+'</label><input type="number" id="td'+k+'" min="1" max="120" inputmode="numeric" value="'+daysFor({note:t})+'"></div>'}).join("");
+  m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Settings"><div class="row" style="justify-content:space-between;align-items:center"><strong style="font-size:1.1rem">Settings</strong><button class="ghost" data-a="closeSet" aria-label="Close">✕</button></div><div class="meta" style="margin:6px 0 4px">Days from flower to fruit</div>'+rows+'<div class="meta" style="margin-top:6px">Typically about 30 to 50 days, depending on weather.</div><div class="acts" style="margin-top:10px"><button class="ok" data-a="saveTD">Save</button><button class="ghost" data-a="closeSet">Cancel</button></div></div>';
+}
+function daysFor(p){var m=S.typeDays||{},v=p&&m[p.note];return v>0?v:S.days}
+function info(b,p){
+  var d=daysFor(p),bloom=parse(b.date),ready=new Date(bloom);ready.setDate(ready.getDate()+d);
   var left=Math.round((ready-today())/864e5);
-  var done=Math.min(100,Math.max(0,Math.round((S.days-left)/S.days*100)));
-  return {ready:ready,left:left,pct:done};
+  var done=Math.min(100,Math.max(0,Math.round((d-left)/d*100)));
+  return {ready:ready,left:left,pct:done,days:d};
 }
 function label(left){
   if(left>1)return left+" days left";
@@ -197,7 +200,7 @@ function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
   var on=!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
-  var order=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"],m={};
+  var order=TYPES.slice(),m={};
   order.forEach(function(t){m[t]={plants:0,fl:0}});
   S.plants.forEach(function(p){var k=p.note||"No type";if(!m[k])m[k]={plants:0,fl:0};m[k].plants++;m[k].fl+=p.batches.reduce(function(s,b){return s+b.qty},0)});
   var keys=order.concat(Object.keys(m).filter(function(k){return order.indexOf(k)<0}));
@@ -206,25 +209,28 @@ function renderTotals(){
   $("totals").innerHTML=rows+'<div class="trow"><div><strong>All plants</strong><div class="meta">'+tp+(tp===1?' plant':' plants')+'</div></div><b>'+tf+(tf===1?' flower':' flowers')+'</b></div>';
 }
 function render(){renderTotals();
-  $("days").value=S.days;
+  
   var all=[];
-  S.plants.forEach(function(p){p.batches.forEach(function(b){var i=info(b);all.push({p:p,b:b,i:i})})});
+  S.plants.forEach(function(p){p.batches.forEach(function(b){var i=info(b,p);all.push({p:p,b:b,i:i})})});
   all.sort(function(a,b){return a.i.left-b.i.left});
   var n=$("next");
-  if(!all.length){n.innerHTML='<strong>Next harvest</strong><div class="meta">Add a plant and a flower batch to start the countdown.</div>'}
-  else{var x=all[0];n.innerHTML='<strong>Next harvest</strong><div>Plant #'+esc(x.p.num)+': '+x.b.qty+(x.b.qty===1?' flower':' flowers')+' · <b>'+label(x.i.left)+'</b></div><div class="meta">Around '+fmt(x.i.ready)+'</div>'}
+  var head='<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px"><strong>Next harvest</strong><button class="ghost" data-a="settings">Settings</button></div>';
+  var body;
+  if(!all.length){body='<div class="meta">Add a plant and a flower batch to start the countdown.</div>'}
+  else{var x=all[0];body='<div>Plant #'+esc(x.p.num)+': '+x.b.qty+(x.b.qty===1?' flower':' flowers')+' · <b>'+label(x.i.left)+'</b></div><div class="meta">Around '+fmt(x.i.ready)+'</div>'}
+  n.innerHTML=head+body;
   var list=S.plants.slice().sort(function(a,b){return a.num-b.num});
   if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Add your first one above.</div>';return}
   $("plants").innerHTML=list.map(function(p){
     var tot=p.batches.reduce(function(s,b){return s+b.qty},0);
     var bs=p.batches.slice().sort(function(a,b){return a.date<b.date?-1:1}).map(function(b){
-      var i=info(b),c=cls(i.left);if(editing===b.id){return '<div class="batch"><div class="row"><label>Flowers<input type="number" min="1" id="eq" value="'+b.qty+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="ed" value="'+b.date+'"></label></div><div class="acts"><button class="ok" data-a="saveEdit" data-p="'+p.id+'" data-b="'+b.id+'">Save</button><button class="ghost" data-a="cancelEdit">Cancel</button></div></div>'}
+      var i=info(b,p),c=cls(i.left);if(editing===b.id){return '<div class="batch"><div class="row"><label>Flowers<input type="number" min="1" id="eq" value="'+b.qty+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="ed" value="'+b.date+'"></label></div><div class="acts"><button class="ok" data-a="saveEdit" data-p="'+p.id+'" data-b="'+b.id+'">Save</button><button class="ghost" data-a="cancelEdit">Cancel</button></div></div>'}
       return '<div class="batch"><div class="top"><strong>'+b.qty+(b.qty===1?' flower':' flowers')+'</strong><span class="pill '+c+'">'+label(i.left)+'</span></div>'
       +'<div class="bar"><i class="'+(i.left<=0?'ready':'')+'" style="width:'+i.pct+'%"></i></div>'
       +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
       +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'">Edit</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button></div></div>';
     }).join("");
-    var types=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna"];var head;if(editingP===p.id){var tl=types.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}if(!open[p.id]&&editingP!==p.id)return '<div class="card plant" data-a="toggle" data-p="'+p.id+'" style="cursor:pointer"><div class="head" style="margin:0"><h2>Plant #'+esc(p.num)+'</h2><button class="ghost" data-a="toggle" data-p="'+p.id+'">Show</button></div></div>';return '<div class="card plant">'+head
+    var head;if(editingP===p.id){var tl=TYPES.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}if(!open[p.id]&&editingP!==p.id)return '<div class="card plant" data-a="toggle" data-p="'+p.id+'" style="cursor:pointer"><div class="head" style="margin:0"><h2>Plant #'+esc(p.num)+'</h2><button class="ghost" data-a="toggle" data-p="'+p.id+'">Show</button></div></div>';return '<div class="card plant">'+head
     +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add bloom</button></div></div>';
   }).join("");
 }
@@ -234,21 +240,23 @@ document.addEventListener("click",function(e){
   var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
   if(a==="signin"||a==="signup"){doAuth(a);return}
   if(a==="mode"){authMode=t.dataset.m;msg="";renderAcct();return}
+  if(a==="settings"){infoOpen=true;renderModal();var f0=$("td0");if(f0&&f0.focus)f0.focus();return}
+  if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;renderModal();return}
+  if(a==="saveTD"){var m={};TYPES.forEach(function(ty,k){var v=parseInt($("td"+k).value,10);if(v>0&&v<=120)m[ty]=v});S.typeDays=m;infoOpen=false;renderModal();save();render();return}
   if(a==="signout"){signOut();return}
   if(a==="tab"){tab=t.dataset.t;renderTotals();return}
   if(a==="addPlant"){
     var num=parseInt($("pnum").value,10);
     if(!num||num<1){$("perr").textContent="Enter a plant number.";return}
+    if(!$("pnote").value){$("perr").textContent="Choose a plant type.";return}
     if(S.plants.some(function(x){return x.num===num})){$("perr").textContent="Plant #"+num+" already exists.";return}
     var np={id:uid(),num:num,note:$("pnote").value.trim(),batches:[]};S.plants.push(np);open[np.id]=true;
     $("pnum").value="";$("pnote").value="";$("perr").textContent="";
-  }else if(a==="saveDays"){
-    var d=parseInt($("days").value,10);if(d>0&&d<=120)S.days=d;
   }else if(a==="addBatch"&&p){
     var q=parseInt($("q-"+p.id).value,10),dt=$("d-"+p.id).value;
     if(!q||q<1||!dt)return;
     p.batches.push({id:uid(),qty:q,date:dt});
-  }else if(a==="toggle"&&p){open[p.id]=!open[p.id];}else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
+  }else if(a==="toggle"&&p){open[p.id]=!open[p.id];}else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}if(!$("ept").value){$("eperr").textContent="Choose a plant type.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
     p.batches=p.batches.filter(function(b){return b.id!==t.dataset.b});
   }else if(a==="delPlant"&&p){
     if(!confirm("Delete plant #"+p.num+" and its flowers?"))return;
@@ -257,6 +265,7 @@ document.addEventListener("click",function(e){
   save();render();
 });
 $("pnum").addEventListener("keydown",function(e){if(e.key==="Enter")document.querySelector('[data-a="addPlant"]').click()});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&infoOpen){infoOpen=false;renderModal()}});
 render();renderAcct();if(sess)withLoad(function(){return pull(false)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&sess&&!timer)pull(false)});
 })();
