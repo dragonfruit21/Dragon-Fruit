@@ -12,7 +12,7 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
+main{max-width:720px;margin:0 auto;padding:16px}
 h1{font-size:1.5rem;margin:8px 0 2px;color:var(--green)}
 .hd{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .sub{color:var(--muted);margin:0 0 16px}
@@ -46,7 +46,6 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .plant{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}.plant input,.plant select{-webkit-user-select:text;user-select:text}.danger{background:#b3261e}
 .plant.sel{outline:2px solid var(--pink);background:var(--pinkbg)}.chk{width:24px;height:24px;border-radius:50%;border:2px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;flex:none}.chk.on{background:var(--pink);border-color:var(--pink)}
 .selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.selbar[hidden]{display:none}
-.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;font-size:2rem;line-height:1;padding:0;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:30}.fab[hidden]{display:none}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
@@ -63,14 +62,13 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <div class="tabs"><button class="tab on" data-a="tab" data-t="planner">Planner</button><button class="tab" data-a="tab" data-t="totals">Totals</button></div>
 <div id="v-planner"><div class="card next" id="next"></div>
 
-<div class="row" id="listbar" style="justify-content:space-between;align-items:center;margin:4px 2px 10px"><strong id="pcount">Plants</strong><button class="ghost" data-a="selStart">Select</button></div>
+<div class="row" id="listbar" style="justify-content:space-between;align-items:center;margin:4px 2px 10px"><strong id="pcount">Plants</strong><div style="display:flex;gap:6px;align-items:center"><button data-a="openPlants" style="padding:6px 12px;font-size:.85rem">+ Add plant</button><button class="ghost" data-a="selStart">Select</button></div></div>
 
 <div id="plants"></div></div>
 <div id="v-totals" hidden><div class="card"><h2 class="th">Flowers by plant type</h2><div class="meta">Counts flowers still growing. Harvested batches are not included.</div><div id="totals"></div></div></div>
 </main>
 <div class="ov" id="modal" data-a="closeSet" hidden></div>
 <div class="selbar" id="selbar" hidden></div>
-<button class="fab" id="fab" data-a="openPlants" aria-label="Add plant" hidden>+</button>
 
 <script>
 (function(){
@@ -207,7 +205,7 @@ function label(left){
 function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
   var on=!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
-var sb=$("selbar"),showSel=selMode&&on&&tab==="planner";sb.hidden=!showSel;$("listbar").style.display=selMode?"none":"flex";$("pcount").textContent="Plants ("+S.plants.length+")";$("fab").hidden=!(on&&tab==="planner"&&!selMode);$("v-planner").style.paddingBottom=showSel?"90px":"";
+var sb=$("selbar"),showSel=selMode&&on&&tab==="planner";sb.hidden=!showSel;$("listbar").style.display=selMode?"none":"flex";$("pcount").textContent="Plants ("+S.plants.length+")";$("v-planner").style.paddingBottom=showSel?"90px":"";
 if(showSel){var cnt=Object.keys(sel).filter(function(i){return find(i)}).length;sb.innerHTML='<div><strong>'+cnt+' selected</strong></div><div class="acts" style="margin:0"><button class="ghost" data-a="selAll">'+(cnt===S.plants.length?'Select none':'Select all')+'</button><button class="danger" data-a="selDelete"'+(cnt?'':' disabled')+'>Delete</button><button class="ghost" data-a="selCancel">Cancel</button></div>'}
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
   var order=TYPES.slice(),m={};
@@ -230,7 +228,7 @@ function render(){renderTotals();
   else{var x=all[0];body='<div>Plant #'+esc(x.p.num)+': '+x.b.qty+(x.b.qty===1?' flower':' flowers')+' · <b>'+label(x.i.left)+'</b></div><div class="meta">Around '+fmt(x.i.ready)+'</div>'}
   n.innerHTML=head+body;
   var list=S.plants.slice().sort(function(a,b){return a.num-b.num});
-  if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Tap + to add your first plant.</div>';return}
+  if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Tap Add plant to get started.</div>';return}
   $("plants").innerHTML=list.map(function(p){
     var tot=p.batches.reduce(function(s,b){return s+b.qty},0);
     var bs=p.batches.slice().sort(function(a,b){return a.date<b.date?-1:1}).map(function(b){
