@@ -43,6 +43,9 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .info{border-radius:50%;width:28px;height:28px;padding:0;font-weight:700;line-height:1}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}.ov[hidden]{display:none}
 .dlg{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;width:100%;max-width:380px;max-height:90vh;overflow:auto}
+.plant{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}.plant input,.plant select{-webkit-user-select:text;user-select:text}.danger{background:#b3261e}
+.plant.sel{outline:2px solid var(--pink);background:var(--pinkbg)}.chk{width:24px;height:24px;border-radius:50%;border:2px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;flex:none}.chk.on{background:var(--pink);border-color:var(--pink)}
+.selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.selbar[hidden]{display:none}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
@@ -59,23 +62,17 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <div class="tabs"><button class="tab on" data-a="tab" data-t="planner">Planner</button><button class="tab" data-a="tab" data-t="totals">Totals</button></div>
 <div id="v-planner"><div class="card next" id="next"></div>
 
-<div class="card">
-  <div class="row">
-    <label>Plant number<input type="number" id="pnum" min="1" inputmode="numeric" placeholder="1"></label>
-    <label>Plant type<select id="pnote"><option value="">Select type</option><option>Sugar Dragon</option><option>SourPatch Kids</option><option>White Vietnamese</option><option>Shayna</option><option>NOID</option></select></label>
-    <button data-a="addPlant">Add plant</button>
-  </div>
-  <div class="err" id="perr"></div>
-</div>
+<div class="card" id="addcard" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><strong>Plants</strong><div class="meta">Add several plants of one type at once. Press and hold a plant, or tap Select, to choose plants to delete.</div></div><div style="display:flex;gap:6px"><button class="ghost" data-a="selStart">Select</button><button data-a="openPlants">Add plant</button></div></div>
 
 <div id="plants"></div></div>
 <div id="v-totals" hidden><div class="card"><h2 class="th">Flowers by plant type</h2><div class="meta">Counts flowers still growing. Harvested batches are not included.</div><div id="totals"></div></div></div>
 </main>
 <div class="ov" id="modal" data-a="closeSet" hidden></div>
+<div class="selbar" id="selbar" hidden></div>
 
 <script>
 (function(){
-var KEY="dfp1", S={days:35,plants:[]}, TYPES=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna","NOID"], infoOpen=false, editing=null, editingP=null, tab="planner", open={};
+var KEY="dfp1", S={days:35,plants:[]}, TYPES=["Sugar Dragon","SourPatch Kids","White Vietnamese","Shayna","NOID"], infoOpen=false, bloomFor=null, plantFlow=null, delList=null, selMode=false, sel={}, editing=null, editingP=null, tab="planner", open={};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plants)S=p}}catch(e){}
 function save(skip){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(sess&&!skip){clearTimeout(timer);timer=setTimeout(push,800)}}
 var SB="https://usmsyjftegnekeffhwna.supabase.co",KEYA="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbXN5amZ0ZWduZWtlZmZod25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDA1NjUsImV4cCI6MjEwODM3NjU2NX0.ZRizDpZ97C4bhCsze42JHxVqkF05MEw2busLfWE9kDE";
@@ -178,11 +175,20 @@ function parse(s){var a=s.split("-");return new Date(+a[0],+a[1]-1,+a[2])}
 function today(){var n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate())}
 function fmt(d){return d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}
 function renderModal(){
-  var m=$("modal");m.hidden=!infoOpen;
+  var m=$("modal"),bp=bloomFor?find(bloomFor):null;if(!bp)bloomFor=null;
+  var dl=(delList||[]).map(find).filter(Boolean);if(!dl.length)delList=null;
+  m.hidden=!(infoOpen||bloomFor||plantFlow||delList);
+  if(delList){var fl=0,nbk=0;dl.forEach(function(x){nbk+=x.batches.length;x.batches.forEach(function(b){fl+=b.qty})});var ns=dl.slice().sort(function(a,b){return a.num-b.num}).map(function(x){return '#'+x.num}).join(', ');m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Delete plants"><strong style="font-size:1.1rem">Delete '+(dl.length===1?'Plant '+ns:dl.length+' plants')+'?</strong><div class="meta" style="margin:8px 0">'+(dl.length>1?esc(ns)+' · ':'')+fl+(fl===1?' flower':' flowers')+' in '+nbk+(nbk===1?' bloom':' blooms')+'. This can’t be undone.</div><div class="acts" style="margin-top:10px"><button class="danger" data-a="delConfirm">Delete</button><button class="ghost" data-a="closeSet">Cancel</button></div></div>';return}
+  if(plantFlow){var pf=plantFlow,b2;
+    if(pf.step===1){b2='<div class="row" style="margin-top:8px"><label>Plant type<select id="pt"><option value="">Select type</option>'+TYPES.map(function(t){return '<option'+(t===pf.type?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label><label>How many plants?<input type="number" id="pq" min="1" max="50" value="'+pf.qty+'" inputmode="numeric"></label></div><div class="err" id="pferr"></div><div class="acts" style="margin-top:10px"><button data-a="plantNext">Next</button><button class="ghost" data-a="closeSet">Cancel</button></div>'}
+    else{b2='<div class="meta" style="margin:6px 0 4px">'+pf.qty+' × '+esc(pf.type)+'. Give each plant its number.</div>'+pf.nums.map(function(v,k){return '<div class="trow"><label for="pn'+k+'" style="flex-direction:row;color:var(--ink);font-size:1rem">Plant '+(k+1)+'</label><input type="number" id="pn'+k+'" min="1" value="'+v+'" inputmode="numeric"></div>'}).join("")+'<div class="err" id="pferr"></div><div class="acts" style="margin-top:10px"><button data-a="plantSave">Add '+(pf.qty===1?'plant':'plants')+'</button><button class="ghost" data-a="plantBack">Back</button><button class="ghost" data-a="closeSet">Cancel</button></div>'}
+    m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Add plants"><div class="row" style="justify-content:space-between;align-items:center"><strong style="font-size:1.1rem">'+(pf.step===1?'Add plants':'Assign plant numbers')+'</strong><button class="ghost" data-a="closeSet" aria-label="Close">✕</button></div>'+b2+'</div>';return}
+  if(bloomFor){m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Add bloom"><div class="row" style="justify-content:space-between;align-items:center"><strong style="font-size:1.1rem">Add bloom</strong><button class="ghost" data-a="closeSet" aria-label="Close">✕</button></div><div class="meta" style="margin:6px 0 8px">Plant #'+esc(bp.num)+(bp.note?' · '+esc(bp.note):'')+'</div><div class="row"><label>Number of flowers<input type="number" id="bq" min="1" value="1" inputmode="numeric"></label><label>Bloom date<input type="date" id="bd" value="'+iso(new Date())+'"></label></div><div class="err" id="berr"></div><div class="acts" style="margin-top:10px"><button data-a="saveBloom">Add bloom</button><button class="ghost" data-a="closeSet">Cancel</button></div></div>';return}
   if(!infoOpen){m.innerHTML="";return}
   var rows=TYPES.map(function(t,k){return '<div class="trow"><label for="td'+k+'" style="flex-direction:row;color:var(--ink);font-size:1rem">'+esc(t)+'</label><input type="number" id="td'+k+'" min="1" max="120" inputmode="numeric" value="'+daysFor({note:t})+'"></div>'}).join("");
   m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Settings"><div class="row" style="justify-content:space-between;align-items:center"><strong style="font-size:1.1rem">Settings</strong><button class="ghost" data-a="closeSet" aria-label="Close">✕</button></div><div class="meta" style="margin:6px 0 4px">Days from flower to fruit</div>'+rows+'<div class="meta" style="margin-top:6px">Typically about 30 to 50 days, depending on weather.</div><div class="acts" style="margin-top:10px"><button class="ok" data-a="saveTD">Save</button><button class="ghost" data-a="closeSet">Cancel</button></div></div>';
 }
+function suggest(n){var used={},out=[],k=1;S.plants.forEach(function(x){used[x.num]=1});while(out.length<n){if(!used[k])out.push(k);k++}return out}
 function daysFor(p){var m=S.typeDays||{},v=p&&m[p.note];return v>0?v:S.days}
 function info(b,p){
   var d=daysFor(p),bloom=parse(b.date),ready=new Date(bloom);ready.setDate(ready.getDate()+d);
@@ -199,6 +205,8 @@ function label(left){
 function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
   var on=!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
+var sb=$("selbar"),showSel=selMode&&on&&tab==="planner";sb.hidden=!showSel;$("addcard").hidden=selMode;$("v-planner").style.paddingBottom=showSel?"90px":"";
+if(showSel){var cnt=Object.keys(sel).filter(function(i){return find(i)}).length;sb.innerHTML='<div><strong>'+cnt+' selected</strong></div><div class="acts" style="margin:0"><button class="ghost" data-a="selAll">'+(cnt===S.plants.length?'Select none':'Select all')+'</button><button class="danger" data-a="selDelete"'+(cnt?'':' disabled')+'>Delete</button><button class="ghost" data-a="selCancel">Cancel</button></div>'}
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
   var order=TYPES.slice(),m={};
   order.forEach(function(t){m[t]={plants:0,fl:0}});
@@ -230,33 +238,42 @@ function render(){renderTotals();
       +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
       +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'">Edit</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button></div></div>';
     }).join("");
-    var head;if(editingP===p.id){var tl=TYPES.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}if(!open[p.id]&&editingP!==p.id)return '<div class="card plant" data-a="toggle" data-p="'+p.id+'" style="cursor:pointer"><div class="head" style="margin:0"><h2>Plant #'+esc(p.num)+'</h2><button class="ghost" data-a="toggle" data-p="'+p.id+'">Show</button></div></div>';return '<div class="card plant">'+head
-    +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="row" style="margin-top:6px"><label>Flowers<input type="number" min="1" value="1" id="q-'+p.id+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="d-'+p.id+'" value="'+iso(new Date())+'"></label><button data-a="addBatch" data-p="'+p.id+'">Add bloom</button></div></div>';
+    var head;if(editingP===p.id){var tl=TYPES.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+(p.note?esc(p.note)+' · ':'')+tot+' flowers growing</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}var nb=null;p.batches.forEach(function(b){var i2=info(b,p);if(!nb||i2.left<nb.i.left)nb={b:b,i:i2}});
+    var sum=nb?'<span class="pill '+cls(nb.i.left)+'">'+label(nb.i.left)+'</span> <span class="meta">'+nb.b.qty+(nb.b.qty===1?' flower':' flowers')+' · '+fmt(nb.i.ready)+'</span>':'<span class="meta">No blooms yet</span>';
+    if((selMode||!open[p.id])&&editingP!==p.id)return '<div class="card plant'+(sel[p.id]?' sel':'')+'" data-pid="'+p.id+'" data-a="toggle" data-p="'+p.id+'" style="cursor:pointer"><div class="head" style="margin:0"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot" style="margin-top:2px">'+(p.note?esc(p.note)+' · ':'')+sum+'</div></div>'+(selMode?'<span class="chk'+(sel[p.id]?' on':'')+'">'+(sel[p.id]?'✓':'')+'</span>':'<button class="ghost" data-a="toggle" data-p="'+p.id+'">Show</button>')+'</div></div>';return '<div class="card plant" data-pid="'+p.id+'">'+head
+    +bs+'<div class="meta" style="margin-top:10px">New flowers opened on a different day? Log them as another bloom.</div><div class="acts"><button data-a="openBloom" data-p="'+p.id+'">Add bloom</button></div></div>';
   }).join("");
 }
 function find(id){return S.plants.filter(function(p){return p.id===id})[0]}
 document.addEventListener("click",function(e){
-  var t=e.target.closest("[data-a]");if(!t)return;
+if(held)return;
+if(selMode){var cc=e.target.closest(".plant");if(cc&&cc.dataset.pid){var pid=cc.dataset.pid;if(sel[pid])delete sel[pid];else sel[pid]=1;render();return}}
+var t=e.target.closest("[data-a]");if(!t)return;
   var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
   if(a==="signin"||a==="signup"){doAuth(a);return}
   if(a==="mode"){authMode=t.dataset.m;msg="";renderAcct();return}
-  if(a==="settings"){infoOpen=true;renderModal();var f0=$("td0");if(f0&&f0.focus)f0.focus();return}
-  if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;renderModal();return}
+  if(a==="settings"){infoOpen=true;bloomFor=null;plantFlow=null;renderModal();var f0=$("td0");if(f0&&f0.focus)f0.focus();return}
+  if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;bloomFor=null;plantFlow=null;delList=null;renderModal();return}
+  if(a==="delConfirm"&&delList){var ids=delList;S.plants=S.plants.filter(function(x){return ids.indexOf(x.id)<0});ids.forEach(function(i){delete open[i]});delList=null;selMode=false;sel={};renderModal();save();render();return}
+  if(a==="selStart"){selMode=true;sel={};editing=null;editingP=null;infoOpen=false;render();return}
+  if(a==="selCancel"){selMode=false;sel={};render();return}
+  if(a==="selAll"){var allIds=S.plants.map(function(x){return x.id});var every=allIds.length>0&&allIds.every(function(i){return sel[i]});sel={};if(!every)allIds.forEach(function(i){sel[i]=1});render();return}
+  if(a==="selDelete"){var ids2=Object.keys(sel).filter(function(i){return find(i)});if(!ids2.length)return;delList=ids2;renderModal();return}
+  if(a==="openPlants"){plantFlow={step:1,type:"",qty:1};infoOpen=false;bloomFor=null;renderModal();var fp=$("pt");if(fp&&fp.focus)fp.focus();return}
+  if(a==="plantNext"&&plantFlow){var ty=$("pt").value,qn=parseInt($("pq").value,10);if(!ty){$("pferr").textContent="Choose a plant type.";return}if(!qn||qn<1||qn>50){$("pferr").textContent="Enter how many plants, from 1 to 50.";return}plantFlow={step:2,type:ty,qty:qn,nums:suggest(qn)};renderModal();return}
+  if(a==="plantBack"&&plantFlow){plantFlow={step:1,type:plantFlow.type,qty:plantFlow.qty};renderModal();return}
+  if(a==="plantSave"&&plantFlow){var nums=[],ok=true;for(var k=0;k<plantFlow.qty;k++){var v=parseInt($("pn"+k).value,10);if(!v||v<1)ok=false;nums.push(v)}
+    if(!ok){$("pferr").textContent="Enter a number for every plant.";return}
+    var bad=null;nums.forEach(function(v,i){if(bad)return;if(nums.indexOf(v)!==i)bad="Plant numbers must be different. #"+v+" is used twice.";else if(S.plants.some(function(x){return x.num===v}))bad="Plant #"+v+" already exists."});
+    if(bad){$("pferr").textContent=bad;return}
+    var tp2=plantFlow.type;nums.forEach(function(v){var np2={id:uid(),num:v,note:tp2,batches:[]};S.plants.push(np2);open[np2.id]=nums.length===1});
+    plantFlow=null;renderModal();save();render();return}
+  if(a==="openBloom"&&p){bloomFor=p.id;infoOpen=false;plantFlow=null;renderModal();var fq=$("bq");if(fq&&fq.focus)fq.focus();return}
+  if(a==="saveBloom"){var bp=find(bloomFor),q=parseInt($("bq").value,10),dt=$("bd").value;if(!bp)return;if(!q||q<1||q>999||!dt){$("berr").textContent="Enter the number of flowers and a bloom date.";return}bp.batches.push({id:uid(),qty:q,date:dt});open[bp.id]=true;bloomFor=null;renderModal();save();render();return}
   if(a==="saveTD"){var m={};TYPES.forEach(function(ty,k){var v=parseInt($("td"+k).value,10);if(v>0&&v<=120)m[ty]=v});S.typeDays=m;infoOpen=false;renderModal();save();render();return}
   if(a==="signout"){signOut();return}
   if(a==="tab"){tab=t.dataset.t;renderTotals();return}
-  if(a==="addPlant"){
-    var num=parseInt($("pnum").value,10);
-    if(!num||num<1){$("perr").textContent="Enter a plant number.";return}
-    if(!$("pnote").value){$("perr").textContent="Choose a plant type.";return}
-    if(S.plants.some(function(x){return x.num===num})){$("perr").textContent="Plant #"+num+" already exists.";return}
-    var np={id:uid(),num:num,note:$("pnote").value.trim(),batches:[]};S.plants.push(np);open[np.id]=true;
-    $("pnum").value="";$("pnote").value="";$("perr").textContent="";
-  }else if(a==="addBatch"&&p){
-    var q=parseInt($("q-"+p.id).value,10),dt=$("d-"+p.id).value;
-    if(!q||q<1||!dt)return;
-    p.batches.push({id:uid(),qty:q,date:dt});
-  }else if(a==="toggle"&&p){open[p.id]=!open[p.id];}else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}if(!$("ept").value){$("eperr").textContent="Choose a plant type.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
+  if(a==="toggle"&&p){open[p.id]=!open[p.id];}else if(a==="editPlant"){editingP=t.dataset.p;render();return;}else if(a==="cancelPlant"){editingP=null;render();return;}else if(a==="savePlant"&&p){var n2=parseInt($("epn").value,10);if(!n2||n2<1){$("eperr").textContent="Enter a plant number.";return}if(S.plants.some(function(x){return x!==p&&x.num===n2})){$("eperr").textContent="Plant #"+n2+" already exists.";return}if(!$("ept").value){$("eperr").textContent="Choose a plant type.";return}p.num=n2;p.note=$("ept").value;editingP=null;}else if(a==="editBatch"){editing=t.dataset.b;render();return;}else if(a==="cancelEdit"){editing=null;render();return;}else if(a==="saveEdit"&&p){var q2=parseInt($("eq").value,10),d2=$("ed").value;if(!q2||q2<1||!d2)return;var bb=p.batches.filter(function(b){return b.id===t.dataset.b})[0];if(bb){bb.qty=q2;bb.date=d2}editing=null;}else if((a==="harvest"||a==="delBatch")&&p){
     p.batches=p.batches.filter(function(b){return b.id!==t.dataset.b});
   }else if(a==="delPlant"&&p){
     if(!confirm("Delete plant #"+p.num+" and its flowers?"))return;
@@ -264,8 +281,20 @@ document.addEventListener("click",function(e){
   }
   save();render();
 });
-$("pnum").addEventListener("keydown",function(e){if(e.key==="Enter")document.querySelector('[data-a="addPlant"]').click()});
-document.addEventListener("keydown",function(e){if(e.key==="Escape"&&infoOpen){infoOpen=false;renderModal()}});
+document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;if(infoOpen||bloomFor||plantFlow||delList){infoOpen=false;bloomFor=null;plantFlow=null;delList=null;renderModal()}else if(selMode){selMode=false;sel={};render()}});
+var held=false,lpT=null,lpX=0,lpY=0,pl=$("plants");
+function startDel(id){if(selMode)return;selMode=true;sel={};sel[id]=1;editing=null;editingP=null;infoOpen=false;bloomFor=null;plantFlow=null;held=true;render()}
+function lpCancel(){clearTimeout(lpT);lpT=null}
+pl.addEventListener("pointerdown",function(e){
+  if(e.button>0||selMode)return;
+  if(e.target.closest("button,input,select,label"))return;
+  var c=e.target.closest(".plant");if(!c||!c.dataset.pid)return;
+  lpX=e.clientX;lpY=e.clientY;lpCancel();
+  lpT=setTimeout(function(){lpT=null;startDel(c.dataset.pid)},600);
+});
+pl.addEventListener("pointermove",function(e){if(lpT&&(Math.abs(e.clientX-lpX)>10||Math.abs(e.clientY-lpY)>10))lpCancel()});
+["pointerup","pointercancel"].forEach(function(n){document.addEventListener(n,function(){lpCancel();if(held)setTimeout(function(){held=false},350)})});
+pl.addEventListener("contextmenu",function(e){var c=e.target.closest(".plant");if(!c||!c.dataset.pid||e.target.closest("input,select"))return;e.preventDefault();lpCancel();startDel(c.dataset.pid)});
 render();renderAcct();if(sess)withLoad(function(){return pull(false)});
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&sess&&!timer)pull(false)});
 })();
