@@ -12,7 +12,7 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:720px;margin:0 auto;padding:16px}
+main{max-width:720px;margin:0 auto;padding:16px 16px 96px}
 h1{font-size:1.5rem;margin:8px 0 2px;color:var(--green)}
 .hd{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .sub{color:var(--muted);margin:0 0 16px}
@@ -46,6 +46,7 @@ button.ok{background:var(--green);color:#fff;padding:5px 9px;font-size:.8rem}
 .plant{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}.plant input,.plant select{-webkit-user-select:text;user-select:text}.danger{background:#b3261e}
 .plant.sel{outline:2px solid var(--pink);background:var(--pinkbg)}.chk{width:24px;height:24px;border-radius:50%;border:2px solid var(--muted);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;flex:none}.chk.on{background:var(--pink);border-color:var(--pink)}
 .selbar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.selbar[hidden]{display:none}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;font-size:2rem;line-height:1;padding:0;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:30}.fab[hidden]{display:none}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
@@ -62,13 +63,14 @@ details summary{cursor:pointer;color:var(--muted);font-size:.85rem}
 <div class="tabs"><button class="tab on" data-a="tab" data-t="planner">Planner</button><button class="tab" data-a="tab" data-t="totals">Totals</button></div>
 <div id="v-planner"><div class="card next" id="next"></div>
 
-<div class="card" id="addcard" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div><strong>Plants</strong><div class="meta">Add several plants of one type at once. Press and hold a plant, or tap Select, to choose plants to delete.</div></div><div style="display:flex;gap:6px"><button class="ghost" data-a="selStart">Select</button><button data-a="openPlants">Add plant</button></div></div>
+<div class="row" id="listbar" style="justify-content:space-between;align-items:center;margin:4px 2px 10px"><strong id="pcount">Plants</strong><button class="ghost" data-a="selStart">Select</button></div>
 
 <div id="plants"></div></div>
 <div id="v-totals" hidden><div class="card"><h2 class="th">Flowers by plant type</h2><div class="meta">Counts flowers still growing. Harvested batches are not included.</div><div id="totals"></div></div></div>
 </main>
 <div class="ov" id="modal" data-a="closeSet" hidden></div>
 <div class="selbar" id="selbar" hidden></div>
+<button class="fab" id="fab" data-a="openPlants" aria-label="Add plant" hidden>+</button>
 
 <script>
 (function(){
@@ -205,7 +207,7 @@ function label(left){
 function cls(left){return left>0?"":(left===0?"ready":"late")}
 function renderTotals(){
   var on=!loading;$("acct").hidden=loading;$("loading").hidden=!loading;document.querySelector(".tabs").style.display=on?"flex":"none";$("v-planner").hidden=!on||tab!=="planner";$("v-totals").hidden=!on||tab!=="totals";
-var sb=$("selbar"),showSel=selMode&&on&&tab==="planner";sb.hidden=!showSel;$("addcard").hidden=selMode;$("v-planner").style.paddingBottom=showSel?"90px":"";
+var sb=$("selbar"),showSel=selMode&&on&&tab==="planner";sb.hidden=!showSel;$("listbar").style.display=selMode?"none":"flex";$("pcount").textContent="Plants ("+S.plants.length+")";$("fab").hidden=!(on&&tab==="planner"&&!selMode);$("v-planner").style.paddingBottom=showSel?"90px":"";
 if(showSel){var cnt=Object.keys(sel).filter(function(i){return find(i)}).length;sb.innerHTML='<div><strong>'+cnt+' selected</strong></div><div class="acts" style="margin:0"><button class="ghost" data-a="selAll">'+(cnt===S.plants.length?'Select none':'Select all')+'</button><button class="danger" data-a="selDelete"'+(cnt?'':' disabled')+'>Delete</button><button class="ghost" data-a="selCancel">Cancel</button></div>'}
   var tb=document.querySelectorAll(".tab");for(var j=0;j<tb.length;j++)tb[j].classList.toggle("on",tb[j].dataset.t===tab);
   var order=TYPES.slice(),m={};
@@ -228,15 +230,15 @@ function render(){renderTotals();
   else{var x=all[0];body='<div>Plant #'+esc(x.p.num)+': '+x.b.qty+(x.b.qty===1?' flower':' flowers')+' · <b>'+label(x.i.left)+'</b></div><div class="meta">Around '+fmt(x.i.ready)+'</div>'}
   n.innerHTML=head+body;
   var list=S.plants.slice().sort(function(a,b){return a.num-b.num});
-  if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Add your first one above.</div>';return}
+  if(!list.length){$("plants").innerHTML='<div class="empty">No plants yet. Tap + to add your first plant.</div>';return}
   $("plants").innerHTML=list.map(function(p){
     var tot=p.batches.reduce(function(s,b){return s+b.qty},0);
     var bs=p.batches.slice().sort(function(a,b){return a.date<b.date?-1:1}).map(function(b){
-      var i=info(b,p),c=cls(i.left);if(editing===b.id){return '<div class="batch"><div class="row"><label>Flowers<input type="number" min="1" id="eq" value="'+b.qty+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="ed" value="'+b.date+'"></label></div><div class="acts"><button class="ok" data-a="saveEdit" data-p="'+p.id+'" data-b="'+b.id+'">Save</button><button class="ghost" data-a="cancelEdit">Cancel</button></div></div>'}
+      var i=info(b,p),c=cls(i.left),dis=editingP===p.id?'':' disabled';if(editing===b.id){return '<div class="batch"><div class="row"><label>Flowers<input type="number" min="1" id="eq" value="'+b.qty+'" inputmode="numeric"></label><label>Bloom date<input type="date" id="ed" value="'+b.date+'"></label></div><div class="acts"><button class="ok" data-a="saveEdit" data-p="'+p.id+'" data-b="'+b.id+'">Save</button><button class="ghost" data-a="cancelEdit">Cancel</button></div></div>'}
       return '<div class="batch"><div class="top"><strong>'+b.qty+(b.qty===1?' flower':' flowers')+'</strong><span class="pill '+c+'">'+label(i.left)+'</span></div>'
       +'<div class="bar"><i class="'+(i.left<=0?'ready':'')+'" style="width:'+i.pct+'%"></i></div>'
       +'<div class="meta">Bloomed '+fmt(parse(b.date))+' · fruit around '+fmt(i.ready)+'</div>'
-      +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'">Edit</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'">Remove</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button></div></div>';
+      +'<div class="acts"><button class="ghost" data-a="editBatch" data-p="'+p.id+'" data-b="'+b.id+'"'+dis+'>Edit</button><button class="ghost" data-a="delBatch" data-p="'+p.id+'" data-b="'+b.id+'"'+dis+'>Remove</button><button class="ok" data-a="harvest" data-p="'+p.id+'" data-b="'+b.id+'">Harvested</button></div></div>';
     }).join("");
     var head;if(editingP===p.id){var tl=TYPES.slice();if(p.note&&tl.indexOf(p.note)<0)tl.push(p.note);head='<div class="head"><div class="row"><label>Plant number<input type="number" min="1" id="epn" value="'+p.num+'" inputmode="numeric"></label><label>Plant type<select id="ept"><option value="">Select type</option>'+tl.map(function(t){return '<option'+(t===p.note?' selected':'')+'>'+esc(t)+'</option>'}).join("")+'</select></label></div><div class="acts" style="margin:0"><button class="ok" data-a="savePlant" data-p="'+p.id+'">Save</button><button class="ghost" data-a="cancelPlant">Cancel</button></div></div><div class="err" id="eperr"></div>'}else{head='<div class="head"><div><h2>Plant #'+esc(p.num)+'</h2><div class="tot">'+esc(p.note||'')+'</div></div><div class="acts" style="margin:0"><button class="ghost" data-a="toggle" data-p="'+p.id+'">Hide</button><button class="ghost" data-a="editPlant" data-p="'+p.id+'">Edit</button><button class="ghost" data-a="delPlant" data-p="'+p.id+'">Delete plant</button></div></div>'}var nb=null;p.batches.forEach(function(b){var i2=info(b,p);if(!nb||i2.left<nb.i.left)nb={b:b,i:i2}});
     var sum=nb?'<span class="pill '+cls(nb.i.left)+'">'+label(nb.i.left)+'</span>':'<span class="meta">No blooms yet</span>';var sum2=nb?'<div class="tot" style="margin-top:3px">'+nb.b.qty+(nb.b.qty===1?' flower':' flowers')+' · '+fmt(nb.i.ready)+'</div>':'';
@@ -250,6 +252,7 @@ if(held)return;
 if(selMode){var cc=e.target.closest(".plant");if(cc&&cc.dataset.pid){var pid=cc.dataset.pid;if(sel[pid])delete sel[pid];else sel[pid]=1;render();return}}
 var t=e.target.closest("[data-a]");if(!t)return;
   var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
+  if((a==="editBatch"||a==="delBatch")&&!(p&&editingP===p.id))return;
   if(a==="signin"||a==="signup"){doAuth(a);return}
   if(a==="mode"){authMode=t.dataset.m;msg="";renderAcct();return}
   if(a==="settings"){infoOpen=true;bloomFor=null;plantFlow=null;renderModal();var f0=$("td0");if(f0&&f0.focus)f0.focus();return}
