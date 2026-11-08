@@ -350,7 +350,7 @@ var t=e.target.closest("[data-a]");if(!t)return;
   if((a==="editBatch"||a==="delBatch")&&!(p&&editingP===p.id))return;
   if(a==="signin"||a==="signup"){doAuth(a);return}
   if(a==="mode"){authMode=t.dataset.m;msg="";renderAcct();return}
-  if(a==="settings"){infoOpen=true;bloomFor=null;plantFlow=null;renderModal();var f0=$("td0");if(f0&&f0.focus)f0.focus();return}
+  if(a==="settings"){infoOpen=true;bloomFor=null;plantFlow=null;renderModal();return}
   if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;bloomFor=null;plantFlow=null;delList=null;harvFor=null;abortFor=null;histEdit=null;histDelId=null;phClose();renderModal();return}
   if(a==="delConfirm"&&delList){var ids=delList,gone=[];S.plants.forEach(function(x){if(ids.indexOf(x.id)>=0)x.batches.forEach(function(b){gone.push(b.id)})});phDropBlooms(gone);S.plants=S.plants.filter(function(x){return ids.indexOf(x.id)<0});ids.forEach(function(i){delete open[i]});delList=null;selMode=false;sel={};renderModal();save();render();return}
   if(a==="selStart"){selMode=true;sel={};editing=null;editingP=null;infoOpen=false;render();return}
@@ -424,6 +424,9 @@ pl.addEventListener("pointerdown",function(e){
 });
 pl.addEventListener("pointermove",function(e){if(lpT&&(Math.abs(e.clientX-lpX)>10||Math.abs(e.clientY-lpY)>10))lpCancel()});
 document.addEventListener("pointerdown",function(){held=false});
+var tdFresh=null;
+document.addEventListener("focusin",function(e){var t=e.target;if(t&&/^td\d$/.test(t.id)&&t.select){tdFresh=t;t.select();setTimeout(function(){if(tdFresh===t)t.select()},0)}});
+document.addEventListener("click",function(e){var t=e.target;if(t&&tdFresh===t&&t.select){t.select();tdFresh=null}});
 document.addEventListener("change",function(e){var t=e.target;if(t&&(t.id==="phCamIn"||t.id==="phLibIn")){phHandle(t.files);t.value=""}});
 document.addEventListener("animationend",function(e){if(e.animationName==="grow"&&e.target.dataset&&e.target.dataset.bid)seenBars[e.target.dataset.bid]=1});
 ["pointerup","pointercancel"].forEach(function(n){document.addEventListener(n,function(){lpCancel();if(held)setTimeout(function(){held=false},350)})});
