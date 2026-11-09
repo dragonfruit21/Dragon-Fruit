@@ -57,6 +57,7 @@ button.bad{background:#b3261e;color:#fff;padding:5px 9px;font-size:.8rem}.acts b
 @media (prefers-reduced-motion:reduce){.bar i,.bar i::after{animation:none!important;transition:none}}
 .ph{display:inline-flex;align-items:center;gap:4px;padding:5px 8px}.phc{font-size:.7rem;font-weight:700;color:var(--pink)}
 .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}.pgrid img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;cursor:pointer;background:var(--bg)}
+.acct-slim{display:flex;justify-content:flex-end;margin:0 0 12px}.acct-slim[hidden]{display:none}.acct-slim button{padding:6px 16px;font-size:.9rem}
 .spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--pink);border-radius:50%;margin:0 auto 12px;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}button:disabled{opacity:.6;cursor:default}
 .empty{color:var(--muted);text-align:center;padding:24px}
 .err{color:var(--amber);font-size:.85rem;margin-top:6px;min-height:1em}
@@ -88,7 +89,7 @@ try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.plan
 if(!S.history)S.history=[];
 function save(skip){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(sess&&!skip){clearTimeout(timer);timer=setTimeout(push,800)}}
 var SB="https://usmsyjftegnekeffhwna.supabase.co",KEYA="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzbXN5amZ0ZWduZWtlZmZod25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDA1NjUsImV4cCI6MjEwODM3NjU2NX0.ZRizDpZ97C4bhCsze42JHxVqkF05MEw2busLfWE9kDE";
-var SK="dfp-sess",sess=null,lastAt="",timer=null,msg="",openAcct=false,authMode="signin",loading=false,busy=false;
+var SK="dfp-sess",sess=null,lastAt="",timer=null,msg="",openAcct=false,authOpen=false,authMode="signin",loading=false,busy=false;
 try{sess=JSON.parse(localStorage.getItem(SK))}catch(e){}
 if(sess&&!sess.user)sess=null;
 lastAt=(sess&&sess.last)||"";loading=!!sess;
@@ -113,11 +114,8 @@ function authed(path,opt){
 function status(t){msg=t;var er=$("aerr");if(sess||!er)renderAcct();else er.textContent=t}
 function renderAcct(){
   renderTotals();var el=$("acct");
-  if(sess){el.innerHTML='<div class="row" style="justify-content:space-between;align-items:center"><div class="meta">Signed in as <b>'+esc(sess.user.name||sess.user.email)+'</b> · '+esc(msg||"Ready")+'</div><button class="ghost" data-a="signout">Sign out</button></div>';return}
-  var up=authMode==="signup";
-  el.innerHTML='<div><strong>'+(up?'Create your account':'Sign in to sync across devices')+'</strong><div class="meta">Without signing in, your plants are saved on this device only.</div><div class="row" style="margin-top:8px">'
-  +(up?'<label>Email<input type="text" id="aem" autocomplete="email"></label>':'')
-  +'<label>Username<input type="text" id="aun" autocomplete="'+(up?'nickname':'username')+'"></label><label>Password<input type="password" id="apw" autocomplete="'+(up?'new-password':'current-password')+'"></label></div><div class="acts"><button data-a="'+(up?'signup':'signin')+'">'+(up?'Create account':'Sign in')+'</button><button class="ghost" data-a="mode" data-m="'+(up?'signin':'signup')+'">'+(up?'Back to sign in':'Create account')+'</button></div><div class="err" id="aerr">'+esc(msg)+'</div></div>';
+  if(sess){el.className="card";el.innerHTML='<div class="row" style="justify-content:space-between;align-items:center"><div class="meta">Signed in as <b>'+esc(sess.user.name||sess.user.email)+'</b> · '+esc(msg||"Ready")+'</div><button class="ghost" data-a="signout">Sign out</button></div>';return}
+  el.className="acct-slim";el.innerHTML='<button data-a="authOpen">Sign in</button>';
 }
 function push(){
   if(!sess)return Promise.resolve();
@@ -154,7 +152,7 @@ function doAuth(kind){
   if(pw.length<6){status("Password must be at least 6 characters.");return}
   if(kind==="signup"&&!/^\S+@\S+\.\S+$/.test(em)){status("Enter a valid email.");return}
   status("Working…");busy=true;
-  var btns=document.querySelectorAll("#acct button");for(var i=0;i<btns.length;i++)btns[i].disabled=true;
+  var btns=document.querySelectorAll("#modal button");for(var i=0;i<btns.length;i++)btns[i].disabled=true;
   var FN="/functions/v1/username-auth";
   var fail=function(){status("Could not connect. Check your internet.")};
   var down=function(x){return x.status>=500||x.status===404||x.status===401};
@@ -166,19 +164,19 @@ function doAuth(kind){
       if(!a.j.available){status("That username is taken. Try another.");return}
       return post("/auth/v1/signup",{email:em,password:pw,data:{username:un}}).then(function(x){
         if(!x.ok){status(x.j.msg||x.j.error_description||x.j.message||"Something went wrong.");return}
-        if(!x.j.access_token){authMode="signin";msg="Account created. Check your email to confirm it, then sign in with your username.";renderAcct();return}
-        lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
+        if(!x.j.access_token){authMode="signin";msg="Account created. Check your email to confirm it, then sign in with your username.";renderModal();return}
+        authOpen=false;renderModal();lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
       });
     });
   }else{
     go=post(FN,{action:"login",username:un,password:pw}).then(function(x){
       if(!x.ok){status(down(x)?"Sign-in service is not available. Try again later.":(x.j.error==="email_not_confirmed"?"Please confirm your email first, then sign in.":"Incorrect username or password."));return}
-      lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
+      authOpen=false;renderModal();lastAt="";setSess(toSess(x.j));msg="";return withLoad(function(){return pull(true)});
     });
   }
-  go.catch(fail).then(function(){busy=false;var b2=document.querySelectorAll("#acct button");for(var k=0;k<b2.length;k++)b2[k].disabled=false});
+  go.catch(fail).then(function(){busy=false;var b2=document.querySelectorAll("#modal button");for(var k=0;k<b2.length;k++)b2[k].disabled=false});
 }
-function signOut(){loading=false;clearTimeout(timer);timer=null;setSess(null);lastAt="";msg="";openAcct=false;renderAcct()}
+function signOut(){authOpen=false;loading=false;clearTimeout(timer);timer=null;setSess(null);lastAt="";msg="";openAcct=false;renderAcct()}
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -230,7 +228,8 @@ function renderModal(){
   var phP=photoFor?find(photoFor.p):null,phB=phP?phP.batches.filter(function(b){return b.id===photoFor.b})[0]:null;if(photoFor&&!phB)phClose();
   var hdl=histDelId?(S.history||[]).filter(function(x){return x.id===histDelId})[0]:null;if(!hdl)histDelId=null;
   var he=histEdit?(S.history||[]).filter(function(x){return x.id===histEdit})[0]:null;if(!he)histEdit=null;
-  m.hidden=!(infoOpen||bloomFor||plantFlow||delList||harvFor||abortFor||histEdit||histDelId||syncChoice||photoFor);
+  m.hidden=!(infoOpen||bloomFor||plantFlow||delList||harvFor||abortFor||histEdit||histDelId||syncChoice||photoFor||(authOpen&&!sess));
+  if(authOpen&&!sess){var up=authMode==="signup";m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Sign in"><div class="row" style="justify-content:space-between;align-items:center"><strong style="font-size:1.1rem">'+(up?'Create your account':'Sign in')+'</strong><button class="ghost" data-a="authClose" aria-label="Close">\u2715</button></div><div class="meta" style="margin:6px 0 8px">Sign in to sync your plants across devices. Without signing in, they are saved on this device only.</div><div class="row">'+(up?'<label>Email<input type="text" id="aem" autocomplete="email"></label>':'')+'<label>Username<input type="text" id="aun" autocomplete="'+(up?'nickname':'username')+'"></label><label>Password<input type="password" id="apw" autocomplete="'+(up?'new-password':'current-password')+'"></label></div><div class="err" id="aerr">'+esc(msg)+'</div><div class="acts" style="margin-top:10px"><button data-a="'+(up?'signup':'signin')+'">'+(up?'Create account':'Sign in')+'</button><button class="ghost" data-a="mode" data-m="'+(up?'signin':'signup')+'">'+(up?'Back to sign in':'Create account')+'</button><button class="ghost" data-a="authClose">Cancel</button></div></div>';return}
   if(syncChoice){m.innerHTML='<div class="dlg" role="dialog" aria-modal="true" aria-label="Choose which data to keep"><strong style="font-size:1.1rem">Your account already has plants</strong><div class="meta" style="margin:8px 0">This device has different plants. Which should be kept?</div><div class="acts" style="margin-top:10px;flex-direction:column;align-items:stretch"><button data-a="syncUseCloud">Use my account\u2019s data</button><button class="ghost" data-a="syncUseDevice" style="padding:9px 14px;font-size:1rem">Replace it with this device\u2019s data</button></div></div>';return}
   if(photoFor){
     var pv=photoView?photoCache.filter(function(c){return c.id===photoView})[0]:null;if(photoView&&!pv)photoView=null;
@@ -349,9 +348,11 @@ var t=e.target.closest("[data-a]");if(!t)return;
   var a=t.dataset.a,p=t.dataset.p?find(t.dataset.p):null;
   if((a==="editBatch"||a==="delBatch")&&!(p&&editingP===p.id))return;
   if(a==="signin"||a==="signup"){doAuth(a);return}
-  if(a==="mode"){authMode=t.dataset.m;msg="";renderAcct();return}
+  if(a==="mode"){authMode=t.dataset.m;msg="";renderModal();return}
+  if(a==="authOpen"){authOpen=true;authMode="signin";msg="";infoOpen=false;bloomFor=null;plantFlow=null;renderModal();return}
+  if(a==="authClose"){authOpen=false;authMode="signin";msg="";renderModal();return}
   if(a==="settings"){infoOpen=true;bloomFor=null;plantFlow=null;renderModal();return}
-  if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;bloomFor=null;plantFlow=null;delList=null;harvFor=null;abortFor=null;histEdit=null;histDelId=null;phClose();renderModal();return}
+  if(a==="closeSet"){if(t.id==="modal"&&e.target!==t)return;infoOpen=false;bloomFor=null;plantFlow=null;delList=null;harvFor=null;abortFor=null;histEdit=null;histDelId=null;authOpen=false;authMode="signin";phClose();renderModal();return}
   if(a==="delConfirm"&&delList){var ids=delList,gone=[];S.plants.forEach(function(x){if(ids.indexOf(x.id)>=0)x.batches.forEach(function(b){gone.push(b.id)})});phDropBlooms(gone);S.plants=S.plants.filter(function(x){return ids.indexOf(x.id)<0});ids.forEach(function(i){delete open[i]});delList=null;selMode=false;sel={};renderModal();save();render();return}
   if(a==="selStart"){selMode=true;sel={};editing=null;editingP=null;infoOpen=false;render();return}
   if(a==="selCancel"){selMode=false;sel={};render();return}
@@ -411,7 +412,7 @@ var t=e.target.closest("[data-a]");if(!t)return;
   }
   save();render();
 });
-document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;if(infoOpen||bloomFor||plantFlow||delList||harvFor||abortFor||histEdit||histDelId||photoFor){infoOpen=false;bloomFor=null;plantFlow=null;delList=null;harvFor=null;abortFor=null;histEdit=null;histDelId=null;phClose();renderModal()}else if(selMode){selMode=false;sel={};render()}});
+document.addEventListener("keydown",function(e){if(e.key!=="Escape")return;if(infoOpen||bloomFor||plantFlow||delList||harvFor||abortFor||histEdit||histDelId||photoFor||authOpen){infoOpen=false;bloomFor=null;plantFlow=null;delList=null;harvFor=null;abortFor=null;histEdit=null;histDelId=null;authOpen=false;authMode="signin";phClose();renderModal()}else if(selMode){selMode=false;sel={};render()}});
 var held=false,lpT=null,lpX=0,lpY=0,pl=$("plants");
 function startDel(id){if(selMode)return;selMode=true;sel={};sel[id]=1;editing=null;editingP=null;infoOpen=false;bloomFor=null;plantFlow=null;held=true;render()}
 function lpCancel(){clearTimeout(lpT);lpT=null}
